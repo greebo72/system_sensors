@@ -12,8 +12,11 @@ import sys
 import os
 import shutil
 import json
-# import os.path
 
+from sys import platform as plt
+from requests import get
+
+# import os.path
 class PropertyBag(dict):
     def to_string(self, device_name:str):
         for key in self.keys():
@@ -52,12 +55,23 @@ if isDockerized:
     vcgencmd   = "/opt/vc/bin/vcgencmd"
 
 # Get OS information
+
 OS_DATA = {}
-with open(os_release) as f:
-    for line in f.readlines():
-        if not line in ['\n', '\r\n']:
-            row = line.strip().split("=")
-            OS_DATA[row[0]] = row[1].strip('"')
+if plt == "linux" or platform == "linux2":
+    with open(os_release) as f:
+        for line in f.readlines():
+            if not line in ['\n', '\r\n']:
+                row = line.strip().split("=")
+                OS_DATA[row[0]] = row[1].strip('"')
+elif plt == "win32":
+    OS_DATA["ID"] = platform.machine()
+    OS_DATA["NAME"] = platform.system()
+    OS_DATA["MACHINE"] = platform.machine()
+    OS_DATA["PLATFORM"] = platform.platform()
+    OS_DATA["SYSTEM"] = platform.system()
+    OS_DATA["VERSION"] = platform.version()
+    OS_DATA["UNAME"] = platform.uname()
+    
 
 old_net_data_tx = psutil.net_io_counters()[0]
 previous_time_tx = time.time() - 10
@@ -117,7 +131,7 @@ def get_temp():
                 break
     except Exception as e:
             print('Could not establish CPU temperature reading: ' + str(e))
-            raise
+            return 'Unsupported'
     return round(temp, 1) if temp != 'Unknown' else temp
 
             # Option to use thermal_zone readings instead of psutil
@@ -243,31 +257,46 @@ def get_swap_usage():
     return str(psutil.swap_memory().percent)
 
 def get_wifi_strength():  # subprocess.check_output(['/proc/net/wireless', 'grep wlan0'])
-    wifi_strength_value = subprocess.check_output(
-                              [
-                                  'bash',
-                                  '-c',
-                                  'cat /proc/net/wireless | grep wlan0: | awk \'{print int($4)}\'',
-                              ]
-                          ).decode('utf-8').rstrip()
-    if not wifi_strength_value:
-        wifi_strength_value = '0'
-    return (wifi_strength_value)
+    if plt == "linux" or plt == "linux2":
+        wifi_strength_value = subprocess.check_output(
+                                [
+                                    'bash',
+                                    '-c',
+                                    'cat /proc/net/wireless | grep wlan0: | awk \'{print int($4)}\'',
+                                ]
+                            ).decode('utf-8').rstrip()
+        if not wifi_strength_value:
+            wifi_strength_value = '0'
+        return (wifi_strength_value)
+    else:
+        return 'Unsupported on' + plt
 
 def get_wifi_ssid():
-    try:
-        ssid = subprocess.check_output(
-                                  [
-                                      'bash',
-                                      '-c',
-                                      '/usr/sbin/iwgetid -r',
-                                  ]
-                              ).decode('utf-8').rstrip()
-    except subprocess.CalledProcessError:
-        ssid = 'UNKNOWN'
-    if not ssid:
-        ssid = 'UNKNOWN'
-    return (ssid)
+    if plt == "linux" or plt == "linux2":
+        try:
+            ssid = subprocess.check_output(
+                                    [
+                                        'bash',
+                                        '-c',
+                                        '/usr/sbin/iwgetid -r',
+                                    ]
+                                ).decode('utf-8').rstrip()
+        except subprocess.CalledProcessError:
+            ssid = 'UNKNOWN'
+        if not ssid:
+            ssid = 'UNKNOWN'
+        return (ssid)
+#    if plt == "win32":
+#        try:
+#            data = subprocess.check_output("netsh wlan show interfaces")
+#            # Output of command depends on OS System lanaguage parsing is not really useful at the moment
+#        except subprocess.CalledProcessError:
+#            ssid = 'UNKNOWN'
+#            if not ssid:
+#                ssid = 'UNKNOWN'
+#            return (ssid)
+    else:
+         return 'Unsupported on' + plt
 
 def get_rpi_power_status():
     return 'ON' if _underVoltage.get() else 'OFF'
@@ -322,13 +351,23 @@ def hex2addr(hex_addr):
 
 def get_host_os():
     try:
-        return OS_DATA['PRETTY_NAME']
+        if plt == "win32":
+            return OS_DATA['SYSTEM'] + " - " + OS_DATA['VERSION']
+        else:
+            return OS_DATA['PRETTY_NAME']
     except:
         return 'Unknown'
 
 def get_host_arch():
     try:
         return platform.machine()
+    except:
+        return 'Unknown'
+
+def get_external_ip():
+    try:
+        ip = get('https://api.ipify.org').text
+        return ip
     except:
         return 'Unknown'
 
@@ -504,5 +543,10 @@ sensors = {
                  'icon': 'wifi',
                  'sensor_type': 'sensor',
                  'function': get_wifi_ssid},
+          'external_ip':
+                {'name':'External IP Adress',
+                 'icon': 'ip',
+                 'sensor_type': 'sensor',
+                 'function': get_external_ip},
           }
 
