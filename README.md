@@ -1,4 +1,4 @@
-# RPI System sensors
+# RPI System sensors [Forked]
 
 [![GitHub Release][releases-shield]][releases]
 [![License][license-shield]](LICENSE.md)
@@ -28,9 +28,11 @@ It currently logs the following data:
 - Disk usage of external drives
 - Hostname
 - Host local IP
+- Host External IP Adress
 - Host OS distro and version
 - CPU Load (1min, 5min and 15min)
 - Network Download & Upload throughput
+
 
 # System Requirements
 
